@@ -11,6 +11,7 @@ type ProcessingElement = {
 };
 export const ProcessingLogicType = {
   vector: 'vector',
+  sfcgal: 'sfcgal',
 };
 
 export const ProcessingMerge = _ProcessingMerge as ProcessingElement[];

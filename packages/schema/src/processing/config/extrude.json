@@ -1,0 +1,9 @@
+{
+  "name": "extrude",
+  "label": "Extrude 3D",
+  "operationParams": ["extrudeHeight"],
+  "operations": {
+    "function": "extrude"
+  },
+  "type": "sfcgal"
+}

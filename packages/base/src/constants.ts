@@ -5,6 +5,7 @@ import * as BaseCommandIDs from './commands/BaseCommandIDs';
 import {
   bookOpenIcon,
   clockIcon,
+  cube3dIcon,
   geoJSONIcon,
   infoIcon,
   moundIcon,
@@ -59,6 +60,7 @@ const iconObject = {
   [CommandIDs.temporalController]: { icon: clockIcon },
   [CommandIDs.addMarker]: { icon: markerIcon },
   [CommandIDs.addStorySegment]: { iconClass: 'fa fa-link' },
+  [CommandIDs.toggle3DView]: { icon: cube3dIcon },
 };
 
 /**

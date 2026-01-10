@@ -1076,6 +1076,27 @@ export function addCommands(
     ...icons.get(CommandIDs.addStorySegment),
   });
 
+  commands.addCommand(CommandIDs.toggle3DView, {
+    label: trans.__('Toggle 3D View'),
+    isToggled: () => {
+      const current = tracker.currentWidget;
+      return current ? current.model.is3DViewActive : false;
+    },
+    isEnabled: () => {
+      // Enable 3D view when there are vector layers with 3D geometries
+      return Boolean(tracker.currentWidget);
+    },
+    execute: () => {
+      const current = tracker.currentWidget;
+      if (!current) {
+        return;
+      }
+      current.model.toggle3DView();
+      commands.notifyCommandChanged(CommandIDs.toggle3DView);
+    },
+    ...icons.get(CommandIDs.toggle3DView),
+  });
+
   loadKeybindings(commands, keybindings);
 }
 

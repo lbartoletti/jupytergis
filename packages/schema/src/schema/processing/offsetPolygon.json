@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "description": "OffsetPolygon",
+  "title": "IOffsetPolygon",
+  "required": ["inputLayer", "offsetDistance"],
+  "additionalProperties": false,
+  "properties": {
+    "inputLayer": {
+      "type": "string",
+      "description": "The input polygon layer for offset computation."
+    },
+    "offsetDistance": {
+      "type": "number",
+      "default": 1.0,
+      "description": "The offset distance (positive for outward, negative for inward)."
+    },
+    "embedOutputLayer": {
+      "type": "boolean",
+      "title": "Embed output offset layer in file",
+      "default": true
+    }
+  }
+}

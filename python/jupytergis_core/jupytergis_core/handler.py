@@ -11,6 +11,8 @@ from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
 from tornado.httpclient import AsyncHTTPClient, HTTPRequest, HTTPResponse
 
+from .sfcgal_processing import is_sfcgal_available, process_geometry, SFCGAL_OPERATIONS
+
 
 @dataclass
 class ProxyConfig:
@@ -299,6 +301,115 @@ class ProxyHandler(APIHandler):
         )
 
 
+class SFCGALProcessingHandler(APIHandler):
+    """Handler for SFCGAL geometry processing operations."""
+
+    @tornado.web.authenticated
+    async def get(self) -> None:
+        """Return available SFCGAL operations and availability status."""
+        self.finish(
+            json.dumps(
+                {
+                    "available": is_sfcgal_available(),
+                    "operations": list(SFCGAL_OPERATIONS.keys()),
+                }
+            )
+        )
+
+    @tornado.web.authenticated
+    async def post(self) -> None:
+        """Process geometry with SFCGAL."""
+        try:
+            if not is_sfcgal_available():
+                self.set_status(503)
+                self.finish(
+                    json.dumps(
+                        {
+                            "error": "SFCGAL not available",
+                            "code": "sfcgal_not_installed",
+                            "message": "PySFCGAL is not installed. Install with: pip install pysfcgal",
+                        }
+                    )
+                )
+                return
+
+            body = self.get_json_body()
+            if not body:
+                self.set_status(400)
+                self.finish(
+                    json.dumps(
+                        {
+                            "error": "Invalid request",
+                            "code": "invalid_body",
+                            "message": "Request body must be valid JSON",
+                        }
+                    )
+                )
+                return
+
+            operation = body.get("operation")
+            geojson = body.get("geojson")
+            params = body.get("params", {})
+
+            if not operation:
+                self.set_status(400)
+                self.finish(
+                    json.dumps(
+                        {
+                            "error": "Missing operation",
+                            "code": "missing_operation",
+                            "message": "Request must include 'operation' field",
+                        }
+                    )
+                )
+                return
+
+            if not geojson:
+                self.set_status(400)
+                self.finish(
+                    json.dumps(
+                        {
+                            "error": "Missing geojson",
+                            "code": "missing_geojson",
+                            "message": "Request must include 'geojson' field",
+                        }
+                    )
+                )
+                return
+
+            logger.info("Processing SFCGAL operation: %s", operation)
+            result = process_geometry(operation, geojson, params)
+
+            self.set_header("Content-Type", "application/json")
+            self.finish(json.dumps(result))
+
+        except ValueError as e:
+            logger.warning("SFCGAL processing validation error: %s", e)
+            self.set_status(400)
+            self.finish(
+                json.dumps(
+                    {
+                        "error": "Validation error",
+                        "code": "validation_error",
+                        "message": str(e),
+                    }
+                )
+            )
+
+        except Exception as e:
+            logger.exception("SFCGAL processing failed")
+            self.set_status(500)
+            self.finish(
+                json.dumps(
+                    {
+                        "error": "Processing error",
+                        "code": "processing_error",
+                        "message": str(e),
+                    }
+                )
+            )
+
+
 def setup_handlers(web_app: Any) -> None:
     """Register handlers with configuration validation.
 
@@ -308,9 +419,14 @@ def setup_handlers(web_app: Any) -> None:
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
 
-    # Configure proxy route
+    # Configure routes
     proxy_route = url_path_join(base_url, "jupytergis_core", "proxy")
-    handlers = [(proxy_route, ProxyHandler)]
+    sfcgal_route = url_path_join(base_url, "jupytergis_core", "sfcgal")
+
+    handlers = [
+        (proxy_route, ProxyHandler),
+        (sfcgal_route, SFCGALProcessingHandler),
+    ]
 
     # Add feature flags
     if os.environ.get("JGIS_EXPOSE_MAPS", False):
@@ -319,3 +435,4 @@ def setup_handlers(web_app: Any) -> None:
 
     web_app.add_handlers(host_pattern, handlers)
     logger.info("JupyterGIS proxy endpoint initialized at: %s", proxy_route)
+    logger.info("JupyterGIS SFCGAL endpoint initialized at: %s", sfcgal_route)

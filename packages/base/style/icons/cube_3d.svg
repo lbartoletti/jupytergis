@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Front face -->
+  <path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/>
+  <!-- Center vertical line -->
+  <path d="M12 22V12"/>
+  <!-- Left diagonal -->
+  <path d="M2 7l10 5"/>
+  <!-- Right diagonal -->
+  <path d="M22 7l-10 5"/>
+</svg>

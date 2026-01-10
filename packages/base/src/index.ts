@@ -12,4 +12,5 @@ export * from './stacBrowser';
 export * from './toolbar';
 export * from './tools';
 export * from './types';
+export * from './view3d';
 export * from './widget';

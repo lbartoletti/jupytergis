@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "StraightSkeleton",
+  "title": "IStraightSkeleton",
+  "required": ["inputLayer"],
+  "additionalProperties": false,
+  "properties": {
+    "inputLayer": {
+      "type": "string",
+      "description": "The input polygon layer for straight skeleton computation."
+    },
+    "embedOutputLayer": {
+      "type": "boolean",
+      "title": "Embed output skeleton layer in file",
+      "default": true
+    }
+  }
+}

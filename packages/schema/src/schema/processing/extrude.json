@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "description": "Extrude",
+  "title": "IExtrude",
+  "required": ["inputLayer", "extrudeHeight"],
+  "additionalProperties": false,
+  "properties": {
+    "inputLayer": {
+      "type": "string",
+      "description": "The input layer for 3D extrusion."
+    },
+    "extrudeHeight": {
+      "type": "number",
+      "default": 10.0,
+      "description": "The extrusion height (Z direction)."
+    },
+    "embedOutputLayer": {
+      "type": "boolean",
+      "title": "Embed output extruded layer in file",
+      "default": true
+    }
+  }
+}

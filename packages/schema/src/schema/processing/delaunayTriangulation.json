@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "DelaunayTriangulation",
+  "title": "IDelaunayTriangulation",
+  "required": ["inputLayer"],
+  "additionalProperties": false,
+  "properties": {
+    "inputLayer": {
+      "type": "string",
+      "description": "The input layer for Delaunay triangulation."
+    },
+    "embedOutputLayer": {
+      "type": "boolean",
+      "title": "Embed output triangulated layer in file",
+      "default": true
+    }
+  }
+}

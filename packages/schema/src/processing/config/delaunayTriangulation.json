@@ -1,0 +1,9 @@
+{
+  "name": "delaunayTriangulation",
+  "label": "Delaunay Triangulation",
+  "operationParams": [],
+  "operations": {
+    "function": "triangulate_2dz"
+  },
+  "type": "sfcgal"
+}

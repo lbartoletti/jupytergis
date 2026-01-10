@@ -1,0 +1,9 @@
+{
+  "name": "offsetPolygon",
+  "label": "Offset Polygon",
+  "operationParams": ["offsetDistance"],
+  "operations": {
+    "function": "offset_polygon"
+  },
+  "type": "sfcgal"
+}

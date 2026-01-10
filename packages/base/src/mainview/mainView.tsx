@@ -106,6 +106,7 @@ import TemporalSlider from './TemporalSlider';
 import { MainViewModel } from './mainviewmodel';
 import { markerIcon } from '../icons';
 import { LeftPanel, RightPanel } from '../panelview';
+import { ThreeView, ThreeViewer } from '../view3d';
 
 type OlLayerTypes =
   | TileLayer
@@ -137,6 +138,8 @@ interface IStates {
   loadingErrors: Array<{ id: string; error: any; index: number }>;
   displayTemporalController: boolean;
   filterStates: IDict<IJGISFilterItem | undefined>;
+  is3DViewActive: boolean;
+  threeViewGeojson: any | null;
 }
 
 export class MainView extends React.Component<IProps, IStates> {
@@ -232,7 +235,12 @@ export class MainView extends React.Component<IProps, IStates> {
       loadingErrors: [],
       displayTemporalController: false,
       filterStates: {},
+      is3DViewActive: false,
+      threeViewGeojson: null,
     };
+
+    // Connect to 3D view signal
+    this._model.view3DChangedSignal.connect(this._on3DViewChanged, this);
 
     this._sources = [];
     this._loadingLayers = new Set();
@@ -281,8 +289,24 @@ export class MainView extends React.Component<IProps, IStates> {
       this,
     );
 
+    this._model.view3DChangedSignal.disconnect(this._on3DViewChanged, this);
+
+    // Dispose 3D viewer
+    if (this._threeViewer) {
+      this._threeViewer.dispose();
+      this._threeViewer = null;
+    }
+
     this._mainViewModel.dispose();
   }
+  
+  deactivate3DView = () => {
+    this.setState({ is3DViewActive: false });
+  };
+
+  private _onThreeViewReady = (viewer: ThreeViewer) => {
+    this._threeViewer = viewer;
+  };
 
   async generateMap(center: number[], zoom: number): Promise<void> {
     if (this.divRef.current) {
@@ -2389,8 +2413,141 @@ export class MainView extends React.Component<IProps, IStates> {
     this.setState(old => ({ ...old, lightTheme }));
   };
 
+  private _on3DViewChanged = (
+    _: IJupyterGISModel,
+    is3DActive: boolean,
+  ): void => {
+    if (is3DActive) {
+      // Get GeoJSON data from all visible layers for 3D visualization
+      this._update3DViewGeojson();
+      // Listen for layer updates when 3D view is active
+      this._model.updateLayerSignal.connect(this._onLayerUpdated, this);
+    } else {
+      // Stop listening for layer updates when 3D view is deactivated
+      this._model.updateLayerSignal.disconnect(this._onLayerUpdated, this);
+    }
+    this.setState(old => ({
+      ...old,
+      is3DViewActive: is3DActive,
+    }));
+  };
+
+  private async _update3DViewGeojson(): Promise<void> {
+    // Get ALL vector layers (not just selected ones) for 3D visualization
+    const layers = this._model.sharedModel.layers;
+    const geojsonFeatures: any[] = [];
+
+    for (const layerId in layers) {
+      const layer = layers[layerId];
+      // Check if layer is visible AND is a VectorLayer with GeoJSON source
+      if (
+        layer.visible === true &&
+        layer.type === 'VectorLayer' &&
+        layer.parameters?.source
+      ) {
+        const source = this._model.getSource(layer.parameters.source);
+        if (source?.type === 'GeoJSONSource') {
+          let data = source.parameters?.data;
+
+          // If data is not loaded yet, try to load it
+          if (!data && source.parameters?.path) {
+            try {
+              data = await loadFile({
+                filepath: source.parameters.path,
+                type: 'GeoJSONSource',
+                model: this._model,
+              });
+            } catch (error) {
+              console.error(
+                `Failed to load GeoJSON data for source ${source.parameters.path}:`,
+                error,
+              );
+              continue;
+            }
+          }
+
+          if (data) {
+            // Handle different GeoJSON structures
+            if (data.type === 'FeatureCollection') {
+              geojsonFeatures.push(...data.features);
+            } else if (data.type === 'Feature') {
+              geojsonFeatures.push(data);
+            } else if (
+              [
+                'Point',
+                'LineString',
+                'Polygon',
+                'MultiPoint',
+                'MultiLineString',
+                'MultiPolygon',
+                'TIN',
+                'PolyhedralSurface',
+              ].includes(data.type)
+            ) {
+              // For direct geometries, wrap them in a feature
+              geojsonFeatures.push({
+                type: 'Feature',
+                geometry: data,
+                properties: { layerId, sourceId: layer.parameters.source },
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (geojsonFeatures.length > 0) {
+      this.setState(old => ({
+        ...old,
+        threeViewGeojson: {
+          type: 'FeatureCollection',
+          features: geojsonFeatures,
+        },
+      }));
+    } else {
+      // If no features found, set to null
+      this.setState(old => ({
+        ...old,
+        threeViewGeojson: null,
+      }));
+    }
+  }
+
+  private _onLayerUpdated = (_: IJupyterGISModel, args: string): void => {
+    // Update 3D view when a layer is updated (e.g., visibility changes)
+    // Parse the layer update to check if it's a visibility change
+    try {
+      const json = JSON.parse(args);
+      const { layer } = json;
+
+      // Only update if the layer is a VectorLayer with GeoJSON source
+      // This ensures we only update when relevant layers change
+      if (layer && layer.type === 'VectorLayer' && layer.parameters?.source) {
+        const source = this._model.getSource(layer.parameters.source);
+        if (source?.type === 'GeoJSONSource') {
+          // Update the 3D view with fresh data
+          this._update3DViewGeojson();
+        }
+      }
+    } catch (error) {
+      console.error('Error processing layer update:', error);
+      // Fallback to updating anyway
+      this._update3DViewGeojson();
+    }
+  };
+
+  private _onThreeViewReady = (viewer: ThreeViewer): void => {
+    this._threeViewer = viewer;
+  };
+
   private _handleWindowResize = (): void => {
-    // TODO SOMETHING
+    // Update 3D viewer when window is resized
+    if (this._threeViewer && this.divRef.current) {
+      this._threeViewer.resize(
+        this.divRef.current.clientWidth,
+        this.divRef.current.clientHeight,
+      );
+    }
   };
 
   render(): JSX.Element {
@@ -2441,11 +2598,13 @@ export class MainView extends React.Component<IProps, IStates> {
             <FollowIndicator remoteUser={this.state.remoteUser} />
             <CollaboratorPointers clients={this.state.clientPointers} />
 
+            {/* 2D Map View */}
             <div
               ref={this.divRef}
               style={{
                 width: '100%',
                 height: '100%',
+                display: this.state.is3DViewActive ? 'none' : 'block',
               }}
             >
               <div className="jgis-panels-wrapper">
@@ -2465,6 +2624,18 @@ export class MainView extends React.Component<IProps, IStates> {
                 )}
               </div>
             </div>
+
+            {/* 3D View */}
+            {this.state.is3DViewActive && (
+              <ThreeView
+                gisModel={this._model}
+                geojson={this.state.threeViewGeojson}
+                onViewChange={active => this._on3DViewChanged(this._model, active)}
+                onClose={this.deactivate3DView}
+                backgroundColor={this.state.lightTheme ? 0xf0f0f0 : 0x2a2a2a}
+                onReady={this._onThreeViewReady}
+              />
+            )}
           </div>
           <StatusBar
             jgisModel={this._model}
@@ -2497,4 +2668,5 @@ export class MainView extends React.Component<IProps, IStates> {
   private _formSchemaRegistry?: IJGISFormSchemaRegistry;
   private _annotationModel?: IAnnotationModel;
   private _featurePropertyCache: Map<string | number, any> = new Map();
+  private _threeViewer: ThreeViewer | null = null;
 }

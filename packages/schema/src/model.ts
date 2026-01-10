@@ -893,6 +893,23 @@ export class JupyterGISModel implements IJupyterGISModel {
     );
   }
 
+  set is3DViewActive(isActive: boolean) {
+    this._is3DViewActive = isActive;
+    this._view3DChangedSignal.emit(isActive);
+  }
+
+  get is3DViewActive(): boolean {
+    return this._is3DViewActive;
+  }
+
+  get view3DChangedSignal(): ISignal<this, boolean> {
+    return this._view3DChangedSignal;
+  }
+
+  toggle3DView(): void {
+    this.is3DViewActive = !this._is3DViewActive;
+  }
+
   private _getLayerTreeInfo(groupName: string):
     | {
         mainGroup: IJGISLayerGroup;
@@ -1009,6 +1026,8 @@ export class JupyterGISModel implements IJupyterGISModel {
   private _updateLayerSignal = new Signal<this, string>(this);
 
   private _isTemporalControllerActive = false;
+  private _is3DViewActive = false;
+  private _view3DChangedSignal = new Signal<this, boolean>(this);
 
   private _editing: { type: SelectionType; itemId: string } | null = null;
   private _editingChanged = new Signal<

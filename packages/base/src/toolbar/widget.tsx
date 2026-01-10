@@ -156,6 +156,15 @@ export class ToolbarWidget extends ReactiveToolbar {
       this.addItem('addMarker', addMarkerButton);
       addMarkerButton.node.dataset.testid = 'add-marker-controller-button';
 
+      const toggle3DViewButton = new CommandToolbarButton({
+        id: CommandIDs.toggle3DView,
+        label: '',
+        commands: options.commands,
+      });
+
+      this.addItem('toggle3DView', toggle3DViewButton);
+      toggle3DViewButton.node.dataset.testid = 'toggle-3d-view-button';
+
       this.addItem('separator2', new Separator());
 
       const toggleConsoleButton = new CommandToolbarButton({

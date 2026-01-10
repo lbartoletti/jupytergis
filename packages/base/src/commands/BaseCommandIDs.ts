@@ -68,3 +68,6 @@ export const showIdentifyPanelTab = 'jupytergis:showIdentifyPanelTab';
 
 // Story maps
 export const addStorySegment = 'jupytergis:addStorySegment';
+
+// 3D View
+export const toggle3DView = 'jupytergis:toggle3DView';

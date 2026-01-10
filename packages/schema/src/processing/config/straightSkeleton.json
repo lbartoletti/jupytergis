@@ -1,0 +1,9 @@
+{
+  "name": "straightSkeleton",
+  "label": "Straight Skeleton",
+  "operationParams": [],
+  "operations": {
+    "function": "straight_skeleton"
+  },
+  "type": "sfcgal"
+}

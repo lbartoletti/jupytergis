@@ -279,6 +279,10 @@ export interface IJupyterGISModel extends DocumentRegistry.IModel {
   addFeatureAsMs(id: string, selectedFeature: string): void;
   triggerLayerUpdate(layerId: string, layer: IJGISLayer): void;
 
+  is3DViewActive: boolean;
+  toggle3DView(): void;
+  view3DChangedSignal: ISignal<any, boolean>;
+
   disposed: ISignal<any, void>;
   getSelectedStory(): {
     storySegmentId: string;
