@@ -35,6 +35,8 @@ def _geojson_to_sfcgal(geojson: Dict) -> "Geometry":
 
     Handles Feature, FeatureCollection, and direct Geometry objects.
     """
+    import json
+
     geojson_type = geojson.get("type")
 
     if geojson_type == "FeatureCollection":
@@ -46,7 +48,9 @@ def _geojson_to_sfcgal(geojson: Dict) -> "Geometry":
         for feature in features:
             geom_data = feature.get("geometry")
             if geom_data:
-                geometries.append(Geometry.from_geojson(geom_data))
+                # Serialize the geometry to JSON string for PySFCGAL
+                geom_json_str = json.dumps(geom_data)
+                geometries.append(Geometry.from_geojson(geom_json_str))
 
         if len(geometries) == 1:
             return geometries[0]
@@ -56,11 +60,14 @@ def _geojson_to_sfcgal(geojson: Dict) -> "Geometry":
         geom_data = geojson.get("geometry")
         if not geom_data:
             raise ValueError("Feature has no geometry")
-        return Geometry.from_geojson(geom_data)
+        # Serialize the geometry to JSON string for PySFCGAL
+        geom_json_str = json.dumps(geom_data)
+        return Geometry.from_geojson(geom_json_str)
 
     else:
-        # Direct geometry object
-        return Geometry.from_geojson(geojson)
+        # Direct geometry object - serialize to JSON string for PySFCGAL
+        geom_json_str = json.dumps(geojson)
+        return Geometry.from_geojson(geom_json_str)
 
 
 def _sfcgal_to_geojson(
@@ -74,7 +81,14 @@ def _sfcgal_to_geojson(
     If original_geojson is provided and was a FeatureCollection,
     returns a FeatureCollection with the processed geometry.
     """
-    result_geom = geom.to_geojson_dict()
+    # Check if the geometry object has the to_geojson_dict method
+    if hasattr(geom, 'to_geojson_dict'):
+        result_geom = geom.to_geojson_dict()
+    else:
+        # If not, try to convert using to_geojson and then parse it back
+        import json
+        geojson_str = geom.to_geojson()
+        result_geom = json.loads(geojson_str)
 
     if original_geojson is None:
         return result_geom
