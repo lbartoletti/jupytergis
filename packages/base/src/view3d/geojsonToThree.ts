@@ -25,13 +25,36 @@ export function geojsonToThree(
     wireframeColor = 0x000000,
   } = options;
 
-  const object = new THREE.Object3D();
-  const boundingBox = new THREE.Box3();
-
+  // Auto-detect if the geometry has 3D coordinates (Z-values)
+  let has3DCoordinates = false;
   const features =
     geojson.type === 'FeatureCollection'
       ? geojson.features
       : [geojson.type === 'Feature' ? geojson : { type: 'Feature', geometry: geojson }];
+
+  // Check if any geometry has Z coordinates
+  for (const feature of features) {
+    const { geometry } = feature;
+    if (!geometry) continue;
+
+    if (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon') {
+      const coords = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+      for (const polygon of coords) {
+        const ring = polygon[0]; // exterior ring
+        for (const point of ring) {
+          if (point.length > 2) { // has Z coordinate
+            has3DCoordinates = true;
+            break;
+          }
+        }
+        if (has3DCoordinates) break;
+      }
+      if (has3DCoordinates) break;
+    }
+  }
+
+  const object = new THREE.Object3D();
+  const boundingBox = new THREE.Box3();
 
   for (const feature of features) {
     const { geometry } = feature;
@@ -54,23 +77,45 @@ export function geojsonToThree(
     switch (geometry.type) {
       case 'Polygon':
         {
-          const shape = new THREE.Shape();
-          const points = geometry.coordinates[0];
-          shape.moveTo(points[0][0], points[0][1]);
-          for (let i = 1; i < points.length; i++) {
-            shape.lineTo(points[i][0], points[i][1]);
-          }
+          // If the polygon has Z-coordinates, create 3D geometry directly from coordinates
+          if (has3DCoordinates && !extrude) {
+            // Create a 3D shape using the actual coordinates
+            const vertices = [];
+            const indices = [];
 
-          if (extrude) {
-            const extrudeSettings = {
-              steps: 1,
-              depth: extrudeHeight,
-              bevelEnabled: false,
-            };
-            const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            // Extract the outer ring
+            const outerRing = geometry.coordinates[0];
+            // Skip the last point if it's the same as the first (closed polygon)
+            const ringPoints = outerRing.slice(0, outerRing.length - 1);
+
+            // Add vertices
+            for (const point of ringPoints) {
+              if (point.length >= 3) {
+                vertices.push(point[0], point[1], point[2]); // x, y, z
+              } else {
+                vertices.push(point[0], point[1], 0); // default z=0 if not provided
+              }
+            }
+
+            // For a simple polygon, create triangles using a fan approach
+            if (vertices.length >= 9) { // at least 3 points (9 coordinates)
+              for (let i = 1; i < (vertices.length / 3) - 1; i++) {
+                indices.push(0, i, i + 1);
+              }
+            }
+
+            const geom = new THREE.BufferGeometry();
+            const positionAttribute = new THREE.Float32BufferAttribute(vertices, 3);
+            geom.setAttribute('position', positionAttribute);
+            if (indices.length > 0) {
+              geom.setIndex(indices);
+            }
+            geom.computeVertexNormals();
+
             const mesh = new THREE.Mesh(geom, material);
             object.add(mesh);
             boundingBox.expandByObject(mesh);
+
             if (wireframe) {
               const wireframeGeom = new THREE.EdgesGeometry(mesh.geometry);
               const wireframeMesh = new THREE.LineSegments(
@@ -80,19 +125,9 @@ export function geojsonToThree(
               object.add(wireframeMesh);
             }
           } else {
-            const geom = new THREE.ShapeGeometry(shape);
-            const mesh = new THREE.Mesh(geom, material);
-            object.add(mesh);
-            boundingBox.expandByObject(mesh);
-          }
-        }
-        break;
-
-      case 'MultiPolygon':
-        {
-          for (const poly of geometry.coordinates) {
+            // Original behavior for 2D polygons with optional extrusion
             const shape = new THREE.Shape();
-            const points = poly[0];
+            const points = geometry.coordinates[0];
             shape.moveTo(points[0][0], points[0][1]);
             for (let i = 1; i < points.length; i++) {
               shape.lineTo(points[i][0], points[i][1]);
@@ -121,6 +156,94 @@ export function geojsonToThree(
               const mesh = new THREE.Mesh(geom, material);
               object.add(mesh);
               boundingBox.expandByObject(mesh);
+            }
+          }
+        }
+        break;
+
+      case 'MultiPolygon':
+        {
+          for (const poly of geometry.coordinates) {
+            // If the polygon has Z-coordinates, create 3D geometry directly from coordinates
+            if (has3DCoordinates && !extrude) {
+              // Create a 3D shape using the actual coordinates
+              const vertices = [];
+              const indices = [];
+
+              // Extract the outer ring
+              const outerRing = poly[0];
+              // Skip the last point if it's the same as the first (closed polygon)
+              const ringPoints = outerRing.slice(0, outerRing.length - 1);
+
+              // Add vertices
+              for (const point of ringPoints) {
+                if (point.length >= 3) {
+                  vertices.push(point[0], point[1], point[2]); // x, y, z
+                } else {
+                  vertices.push(point[0], point[1], 0); // default z=0 if not provided
+                }
+              }
+
+              // For a simple polygon, create triangles using a fan approach
+              if (vertices.length >= 9) { // at least 3 points (9 coordinates)
+                for (let i = 1; i < (vertices.length / 3) - 1; i++) {
+                  indices.push(0, i, i + 1);
+                }
+              }
+
+              const geom = new THREE.BufferGeometry();
+              const positionAttribute = new THREE.Float32BufferAttribute(vertices, 3);
+              geom.setAttribute('position', positionAttribute);
+              if (indices.length > 0) {
+                geom.setIndex(indices);
+              }
+              geom.computeVertexNormals();
+
+              const mesh = new THREE.Mesh(geom, material);
+              object.add(mesh);
+              boundingBox.expandByObject(mesh);
+
+              if (wireframe) {
+                const wireframeGeom = new THREE.EdgesGeometry(mesh.geometry);
+                const wireframeMesh = new THREE.LineSegments(
+                  wireframeGeom,
+                  wireframeMaterial,
+                );
+                object.add(wireframeMesh);
+              }
+            } else {
+              // Original behavior for 2D polygons with optional extrusion
+              const shape = new THREE.Shape();
+              const points = poly[0];
+              shape.moveTo(points[0][0], points[0][1]);
+              for (let i = 1; i < points.length; i++) {
+                shape.lineTo(points[i][0], points[i][1]);
+              }
+
+              if (extrude) {
+                const extrudeSettings = {
+                  steps: 1,
+                  depth: extrudeHeight,
+                  bevelEnabled: false,
+                };
+                const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                const mesh = new THREE.Mesh(geom, material);
+                object.add(mesh);
+                boundingBox.expandByObject(mesh);
+                if (wireframe) {
+                  const wireframeGeom = new THREE.EdgesGeometry(mesh.geometry);
+                  const wireframeMesh = new THREE.LineSegments(
+                    wireframeGeom,
+                    wireframeMaterial,
+                  );
+                  object.add(wireframeMesh);
+                }
+              } else {
+                const geom = new THREE.ShapeGeometry(shape);
+                const mesh = new THREE.Mesh(geom, material);
+                object.add(mesh);
+                boundingBox.expandByObject(mesh);
+              }
             }
           }
         }
@@ -177,7 +300,7 @@ export function geojsonToThree(
           }
         }
         break;
-      
+
       case 'TIN':
         {
           const geom = new THREE.BufferGeometry();
@@ -197,7 +320,7 @@ export function geojsonToThree(
           }
         }
         break;
-      
+
       case 'PolyhedralSurface':
         {
           const geom = new THREE.BufferGeometry();

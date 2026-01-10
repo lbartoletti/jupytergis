@@ -311,7 +311,7 @@ export class ThreeView extends React.Component<
     const layers = this.gisModel.getLayers();
     let layer3DId: string | undefined = undefined;
     
-    for (const [id, layer] of layers.entries()) {
+    for (const [id, layer] of Object.entries(layers)) {
       if (layer.parameters?.extrude) {
         layer3DId = id;
         break;
@@ -358,7 +358,7 @@ export class ThreeView extends React.Component<
       this.viewer.loadGeoJSON(geojson, this.props.conversionOptions);
 
       // Apply initial properties
-      const layers = Array.from(this.gisModel.getLayers().values()) as IJGISLayer[];
+      const layers = Object.values(this.gisModel.getLayers()) as IJGISLayer[];
       const layer3D = layers.find(l => l.parameters?.extrude);
       this.updateObjectProperties(layer3D);
 

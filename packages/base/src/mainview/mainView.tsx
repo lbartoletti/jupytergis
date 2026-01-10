@@ -2536,10 +2536,6 @@ export class MainView extends React.Component<IProps, IStates> {
     }
   };
 
-  private _onThreeViewReady = (viewer: ThreeViewer): void => {
-    this._threeViewer = viewer;
-  };
-
   private _handleWindowResize = (): void => {
     // Update 3D viewer when window is resized
     if (this._threeViewer && this.divRef.current) {
