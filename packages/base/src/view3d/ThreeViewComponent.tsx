@@ -63,12 +63,23 @@ export class ThreeViewer {
   }
 
   private setupLights(maxDimension?: number): void {
-    // Clear existing lights
-    this.scene.traverse((obj) => {
-      if (obj instanceof THREE.Light) {
-        this.scene.remove(obj);
+    // Clear existing lights with defensive programming to handle potential undefined children
+    try {
+      this.scene.traverse((obj) => {
+        if (obj && obj instanceof THREE.Light) {
+          this.scene.remove(obj);
+        }
+      });
+    } catch (error) {
+      console.warn('Error during scene traversal in setupLights:', error);
+      // If traversal fails, manually iterate through children to remove lights
+      for (let i = this.scene.children.length - 1; i >= 0; i--) {
+        const child = this.scene.children[i];
+        if (child && child instanceof THREE.Light) {
+          this.scene.remove(child);
+        }
       }
-    });
+    }
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambient);
@@ -97,12 +108,23 @@ export class ThreeViewer {
       this.currentObject = null;
     }
 
-    // Remove any existing grid helpers
-    this.scene.traverse((obj) => {
-      if (obj instanceof THREE.GridHelper) {
-        this.scene.remove(obj);
+    // Remove any existing grid helpers with defensive programming
+    try {
+      this.scene.traverse((obj) => {
+        if (obj && obj instanceof THREE.GridHelper) {
+          this.scene.remove(obj);
+        }
+      });
+    } catch (error) {
+      console.warn('Error during scene traversal to remove grid helpers:', error);
+      // If traversal fails, manually iterate through children to remove grid helpers
+      for (let i = this.scene.children.length - 1; i >= 0; i--) {
+        const child = this.scene.children[i];
+        if (child && child instanceof THREE.GridHelper) {
+          this.scene.remove(child);
+        }
       }
-    });
+    }
 
     if (!geojson) {
       return;
@@ -143,23 +165,43 @@ export class ThreeViewer {
   }
 
   private disposeObject(object: THREE.Object3D): void {
-    object.traverse((child: THREE.Object3D) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m: THREE.Material) => m.dispose());
-        } else {
-          child.material.dispose();
+    try {
+      object.traverse((child: THREE.Object3D) => {
+        if (child && child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m: THREE.Material) => m && m.dispose());
+          } else if (child.material) {
+            child.material.dispose();
+          }
+        } else if (child && child instanceof THREE.Line) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m: THREE.Material) => m && m.dispose());
+          } else if (child.material) {
+            child.material.dispose();
+          }
         }
-      } else if (child instanceof THREE.Line) {
-        child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-          child.material.forEach((m: THREE.Material) => m.dispose());
-        } else {
-          child.material.dispose();
+      });
+    } catch (error) {
+      console.warn('Error during object traversal in disposeObject:', error);
+      // If traversal fails, manually dispose of the object's geometry and materials
+      if (object instanceof THREE.Mesh) {
+        object.geometry?.dispose();
+        if (Array.isArray(object.material)) {
+          object.material.forEach(m => m && m.dispose());
+        } else if (object.material) {
+          object.material.dispose();
+        }
+      } else if (object instanceof THREE.Line) {
+        object.geometry?.dispose();
+        if (Array.isArray(object.material)) {
+          object.material.forEach(m => m && m.dispose());
+        } else if (object.material) {
+          object.material.dispose();
         }
       }
-    });
+    }
   }
 
   resize(width: number, height: number): void {
@@ -198,14 +240,26 @@ export class ThreeViewer {
       return;
     }
 
-    this.currentObject.traverse((child: THREE.Object3D) => {
+    try {
+      this.currentObject.traverse((child: THREE.Object3D) => {
+        if (
+          child &&
+          (child instanceof THREE.LineSegments ||
+          child instanceof THREE.LineLoop)
+        ) {
+          child.visible = visible;
+        }
+      });
+    } catch (error) {
+      console.warn('Error during object traversal in setWireframeVisible:', error);
+      // If traversal fails, manually handle the visibility
       if (
-        child instanceof THREE.LineSegments ||
-        child instanceof THREE.LineLoop
+        this.currentObject instanceof THREE.LineSegments ||
+        this.currentObject instanceof THREE.LineLoop
       ) {
-        child.visible = visible;
+        this.currentObject.visible = visible;
       }
-    });
+    }
   }
 
   setOpacity(opacity: number): void {
@@ -213,14 +267,29 @@ export class ThreeViewer {
       return;
     }
 
-    this.currentObject.traverse((child: THREE.Object3D) => {
-      if (child instanceof THREE.Mesh) {
-        const material = child.material as THREE.MeshPhongMaterial;
-        material.opacity = opacity;
-        material.transparent = opacity < 1;
-        material.needsUpdate = true;
+    try {
+      this.currentObject.traverse((child: THREE.Object3D) => {
+        if (child && child instanceof THREE.Mesh) {
+          const material = child.material as THREE.MeshPhongMaterial;
+          if (material) {
+            material.opacity = opacity;
+            material.transparent = opacity < 1;
+            material.needsUpdate = true;
+          }
+        }
+      });
+    } catch (error) {
+      console.warn('Error during object traversal in setOpacity:', error);
+      // If traversal fails, manually handle opacity if currentObject is a Mesh
+      if (this.currentObject instanceof THREE.Mesh) {
+        const material = this.currentObject.material as THREE.MeshPhongMaterial;
+        if (material) {
+          material.opacity = opacity;
+          material.transparent = opacity < 1;
+          material.needsUpdate = true;
+        }
       }
-    });
+    }
   }
 
   setColor(color: number): void {
@@ -228,13 +297,27 @@ export class ThreeViewer {
       return;
     }
 
-    this.currentObject.traverse((child: THREE.Object3D) => {
-      if (child instanceof THREE.Mesh) {
-        const material = child.material as THREE.MeshPhongMaterial;
-        material.color.setHex(color);
-        material.needsUpdate = true;
+    try {
+      this.currentObject.traverse((child: THREE.Object3D) => {
+        if (child && child instanceof THREE.Mesh) {
+          const material = child.material as THREE.MeshPhongMaterial;
+          if (material) {
+            material.color.setHex(color);
+            material.needsUpdate = true;
+          }
+        }
+      });
+    } catch (error) {
+      console.warn('Error during object traversal in setColor:', error);
+      // If traversal fails, manually handle color if currentObject is a Mesh
+      if (this.currentObject instanceof THREE.Mesh) {
+        const material = this.currentObject.material as THREE.MeshPhongMaterial;
+        if (material) {
+          material.color.setHex(color);
+          material.needsUpdate = true;
+        }
       }
-    });
+    }
   }
 
   screenshot(): string {
@@ -253,11 +336,22 @@ export class ThreeViewer {
       this.disposeObject(this.currentObject);
     }
 
-    this.scene.traverse((child: THREE.Object3D) => {
-      if (child instanceof THREE.Mesh || child instanceof THREE.Line) {
-        this.disposeObject(child);
+    try {
+      this.scene.traverse((child: THREE.Object3D) => {
+        if (child && (child instanceof THREE.Mesh || child instanceof THREE.Line)) {
+          this.disposeObject(child);
+        }
+      });
+    } catch (error) {
+      console.warn('Error during scene traversal in dispose:', error);
+      // If traversal fails, manually dispose of objects in the scene
+      for (let i = this.scene.children.length - 1; i >= 0; i--) {
+        const child = this.scene.children[i];
+        if (child && (child instanceof THREE.Mesh || child instanceof THREE.Line)) {
+          this.disposeObject(child);
+        }
       }
-    });
+    }
 
     this.renderer.dispose();
   }
