@@ -40,7 +40,8 @@ export class ThreeViewer {
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xf0f0f0);
-    this.camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 10000);
+    // Increase the near/far clipping planes to accommodate large coordinate differences
+    this.camera = new THREE.PerspectiveCamera(50, width / height, 0.01, 1000000);
     this.camera.position.set(100, -100, 100);
     this.camera.up.set(0, 0, 1);
     this.renderer = new THREE.WebGLRenderer({
@@ -53,28 +54,34 @@ export class ThreeViewer {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.setupLights();
-    this.addGridHelper();
+    this.setupLights(); // Call without parameter during initialization
+    // Don't add grid helper initially - it will be added after data is loaded
+    // and we know the scale
     const axesHelper = new THREE.AxesHelper(50);
     this.scene.add(axesHelper);
     this.animate();
   }
 
-  private setupLights(): void {
+  private setupLights(maxDimension?: number): void {
+    // Clear existing lights
+    this.scene.traverse((obj) => {
+      if (obj instanceof THREE.Light) {
+        this.scene.remove(obj);
+      }
+    });
+
     const ambient = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambient);
+
+    // Position directional light based on the scale of the data
+    const lightDistance = maxDimension ? Math.max(maxDimension * 0.5, 100) : 100;
     const directional = new THREE.DirectionalLight(0xffffff, 0.8);
-    directional.position.set(100, 100, 100);
+    directional.position.set(lightDistance, lightDistance, lightDistance);
     directional.castShadow = true;
     this.scene.add(directional);
+
     const hemisphere = new THREE.HemisphereLight(0x87ceeb, 0x545454, 0.4);
     this.scene.add(hemisphere);
-  }
-
-  private addGridHelper(): void {
-    const gridHelper = new THREE.GridHelper(200, 20, 0x888888, 0xcccccc);
-    gridHelper.rotation.x = Math.PI / 2;
-    this.scene.add(gridHelper);
   }
 
   private animate = (): void => {
@@ -90,6 +97,13 @@ export class ThreeViewer {
       this.currentObject = null;
     }
 
+    // Remove any existing grid helpers
+    this.scene.traverse((obj) => {
+      if (obj instanceof THREE.GridHelper) {
+        this.scene.remove(obj);
+      }
+    });
+
     if (!geojson) {
       return;
     }
@@ -98,9 +112,29 @@ export class ThreeViewer {
       const result: ConversionResult = geojsonToThree(geojson, options);
       this.currentObject = result.object;
       this.scene.add(this.currentObject);
+
+      // Calculate the size of the bounding box to determine appropriate scale for helpers
+      const size = result.boundingBox.getSize(new THREE.Vector3());
+      const maxDimension = Math.max(size.x, size.y, size.z);
+
+      // Add grid helper with appropriate scale based on data dimensions
+      const gridSize = Math.min(Math.ceil(maxDimension * 1.2), 1000000); // Limit to 1M units max
+      const gridDivisions = Math.min(Math.floor(gridSize / 10), 1000); // Limit divisions
+
+      const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x888888, 0xcccccc);
+      gridHelper.rotation.x = Math.PI / 2;
+      this.scene.add(gridHelper);
+
+      // Adjust lights based on the scale of the data
+      this.setupLights(maxDimension);
+
       const cameraPos = computeCameraPosition(result.boundingBox);
       this.camera.position.copy(cameraPos);
-      this.controls.target.set(0, 0, 0);
+
+      // Set the controls target to the center of the bounding box instead of origin
+      const center = new THREE.Vector3();
+      result.boundingBox.getCenter(center);
+      this.controls.target.copy(center);
       this.controls.update();
     } catch (error) {
       console.error('Error loading GeoJSON into Three.js:', error);
@@ -310,8 +344,8 @@ export class ThreeView extends React.Component<
     // is being displayed in the 3D view.
     const layers = this.gisModel.getLayers();
     let layer3DId: string | undefined = undefined;
-    
-    for (const [id, layer] of Object.entries(layers)) {
+
+    for (const [id, layer] of Object.entries(layers) as [string, any][]) {
       if (layer.parameters?.extrude) {
         layer3DId = id;
         break;
@@ -322,7 +356,7 @@ export class ThreeView extends React.Component<
       return;
     }
 
-    change.layerChange?.forEach(c => {
+    change.layerChange?.forEach((c: any) => {
       if (c.id === layer3DId) {
         this.updateObjectProperties(c.newValue);
       }

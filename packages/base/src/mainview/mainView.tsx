@@ -2436,9 +2436,14 @@ export class MainView extends React.Component<IProps, IStates> {
     // Get ALL vector layers (not just selected ones) for 3D visualization
     const layers = this._model.sharedModel.layers;
     const geojsonFeatures: any[] = [];
+    let detectedCrs: any = null; // Preserve CRS from the first source that has one
+
+    console.log('[_update3DViewGeojson] Starting, layers:', Object.keys(layers));
 
     for (const layerId in layers) {
       const layer = layers[layerId];
+      console.log('[_update3DViewGeojson] Layer:', layerId, 'type:', layer.type, 'visible:', layer.visible, 'source:', layer.parameters?.source);
+
       // Check if layer is visible AND is a VectorLayer with GeoJSON source
       if (
         layer.visible === true &&
@@ -2446,6 +2451,7 @@ export class MainView extends React.Component<IProps, IStates> {
         layer.parameters?.source
       ) {
         const source = this._model.getSource(layer.parameters.source);
+        console.log('[_update3DViewGeojson] Source type:', source?.type);
         if (source?.type === 'GeoJSONSource') {
           let data = source.parameters?.data;
 
@@ -2466,7 +2472,15 @@ export class MainView extends React.Component<IProps, IStates> {
             }
           }
 
+          console.log('[_update3DViewGeojson] Data loaded:', !!data, 'CRS:', data?.crs);
+
           if (data) {
+            // Preserve CRS from the first source that has one
+            if (!detectedCrs && data.crs) {
+              detectedCrs = data.crs;
+              console.log('[_update3DViewGeojson] Detected CRS:', detectedCrs);
+            }
+
             // Handle different GeoJSON structures
             if (data.type === 'FeatureCollection') {
               geojsonFeatures.push(...data.features);
@@ -2496,15 +2510,24 @@ export class MainView extends React.Component<IProps, IStates> {
       }
     }
 
+    console.log('[_update3DViewGeojson] Total features:', geojsonFeatures.length, 'CRS:', detectedCrs);
+
     if (geojsonFeatures.length > 0) {
+      const featureCollection: any = {
+        type: 'FeatureCollection',
+        features: geojsonFeatures,
+      };
+      // Add CRS if detected from any source
+      if (detectedCrs) {
+        featureCollection.crs = detectedCrs;
+      }
+      console.log('[_update3DViewGeojson] Setting threeViewGeojson with CRS:', featureCollection.crs);
       this.setState(old => ({
         ...old,
-        threeViewGeojson: {
-          type: 'FeatureCollection',
-          features: geojsonFeatures,
-        },
+        threeViewGeojson: featureCollection,
       }));
     } else {
+      console.log('[_update3DViewGeojson] No features found, setting geojson to null');
       // If no features found, set to null
       this.setState(old => ({
         ...old,

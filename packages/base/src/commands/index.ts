@@ -1083,8 +1083,41 @@ export function addCommands(
       return current ? current.model.is3DViewActive : false;
     },
     isEnabled: () => {
-      // Enable 3D view when there are vector layers with 3D geometries
-      return Boolean(tracker.currentWidget);
+      // Enable 3D view when there are vector layers with 3D geometries or extrusion
+      const current = tracker.currentWidget;
+      if (!current) {
+        return false;
+      }
+
+      // Check if there are any layers that could be visualized in 3D
+      const layers = current.model.getLayers();
+      const sources = current.model.getSources();
+
+      for (const [, layer] of Object.entries(layers) as [string, any][]) {
+        // Check if layer has 3D geometry or extrusion
+        if (layer.type === 'VectorLayer' && layer.parameters?.extrude) {
+          return true;
+        }
+
+        // Check if it's a WebGlLayer (for raster 3D visualization)
+        if (layer.type === 'WebGlLayer') {
+          return true;
+        }
+
+        // Check if the layer's source has 3D data
+        const sourceId = layer.parameters?.source;
+        if (sourceId && sources[sourceId]) {
+          const source = sources[sourceId];
+          // If source is GeoJSON and layer has 3D properties
+          if (source.type === 'GeoJSONSource' && layer.parameters?.extrude) {
+            return true;
+          }
+        }
+      }
+
+      // If no 3D-capable layers found, still allow 3D view to be toggled
+      // so users can see empty 3D view or add 3D content later
+      return Boolean(current);
     },
     execute: () => {
       const current = tracker.currentWidget;
